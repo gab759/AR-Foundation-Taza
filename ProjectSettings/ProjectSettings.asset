@@ -162,6 +162,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   applicationIdentifier:
     Android: com.DefaultCompany.PROBANDO
+    Standalone: com.DefaultCompany.PROBANDO
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -845,7 +846,7 @@ PlayerSettings:
   embeddedLinuxEnableGamepadInput: 1
   hmiLogStartupTiming: 0
   hmiCpuConfiguration: 
-  apiCompatibilityLevel: 6
+  apiCompatibilityLevel: 3
   activeInputHandler: 2
   windowsGamepadBackendHint: 0
   cloudProjectId: 7d1003db-f526-4b85-901f-bd2981eb863f
