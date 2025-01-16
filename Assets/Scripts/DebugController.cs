@@ -1,51 +1,52 @@
 using UnityEngine;
 using TMPro;
+using System.Collections.Generic;
+
 
 public class SerialDebugHandler : MonoBehaviour
 {
-    public TextMeshProUGUI dataText;          // TextMeshPro para mostrar los datos recibidos
-    public Material targetMaterial;          // Material que cambiará de color
-    public float minTemperature = 20f;       // Temperatura mínima (frío, azul)
-    public float maxTemperature = 37f;       // Temperatura máxima (calor, rojo)
+    // Componentes de la gráfica
+    public LineRenderer lineRenderer;
+    public int maxPoints = 50;             // Máximo de puntos visibles
+    public float updateInterval = 0.5f;    // Intervalo de actualización en segundos
+    public float xSpacing = 1f;            // Espaciado entre puntos
+    public float minY = 20f;               // Mínimo del eje Y
+    public float maxY = 37f;               // Máximo del eje Y
 
-    // Este método se llama cuando llega un mensaje al puerto serial
+    private List<Vector3> points = new List<Vector3>();
+
+    // Componentes para el serial
+    public TextMeshProUGUI dataText;       // Mostrar datos recibidos
+    private float latestTemperature = 25f; // Última temperatura procesada (valor inicial por defecto)
+
+    void Start()
+    {
+        if (lineRenderer == null)
+        {
+            lineRenderer = GetComponent<LineRenderer>();
+        }
+        lineRenderer.positionCount = 0;
+
+        // Comenzar la actualización de datos
+        InvokeRepeating(nameof(UpdateGraph), 0f, updateInterval);
+    }
+
+    // Método llamado desde el sistema de serial para recibir datos del sensor
     public void OnMessageArrived(string message)
     {
         Debug.Log("Mensaje recibido del puerto serial: " + message);
 
-        // Mostrar el mensaje completo en el TextMeshPro
+        // Mostrar mensaje completo
         if (dataText != null)
         {
             dataText.text = "Datos recibidos:\n" + message;
         }
 
-        // Procesar los datos para extraer la primera temperatura
-        float firstSensorValue = ExtractFirstSensorValue(message);
-        if (firstSensorValue != -1)
+        // Extraer la temperatura del primer sensor
+        float extractedTemperature = ExtractFirstSensorValue(message);
+        if (extractedTemperature != -1)
         {
-            // Cambiar el color del material según la temperatura
-            UpdateMaterialColor(firstSensorValue);
-        }
-    }
-
-    // Este método se llama cuando cambia el estado de la conexión
-    public void OnConnectionEvent(bool isConnected)
-    {
-        if (isConnected)
-        {
-            Debug.Log("Conexión establecida con el puerto serial.");
-            if (dataText != null)
-            {
-                dataText.text = "Conexión establecida con el puerto serial.";
-            }
-        }
-        else
-        {
-            Debug.Log("Conexión perdida con el puerto serial.");
-            if (dataText != null)
-            {
-                dataText.text = "Conexión perdida con el puerto serial.";
-            }
+            latestTemperature = Mathf.Clamp(extractedTemperature, minY, maxY); // Limitar al rango válido
         }
     }
 
@@ -54,14 +55,13 @@ public class SerialDebugHandler : MonoBehaviour
     {
         try
         {
-            // Buscar el inicio del valor del primer sensor
             int startIndex = message.IndexOf("Sensor 1:") + "Sensor 1:".Length;
             int endIndex = message.IndexOf("??C", startIndex);
 
             if (startIndex > -1 && endIndex > startIndex)
             {
                 string valueString = message.Substring(startIndex, endIndex - startIndex).Trim();
-                return float.Parse(valueString); // Convertir a float
+                return float.Parse(valueString);
             }
         }
         catch (System.Exception e)
@@ -69,26 +69,32 @@ public class SerialDebugHandler : MonoBehaviour
             Debug.LogError("Error al extraer el valor del primer sensor: " + e.Message);
         }
 
-        return -1; // Devolver -1 si no se pudo extraer el valor
+        return -1; // Retorna -1 si falla
     }
 
-    // Método para actualizar el color del material según la temperatura
-    private void UpdateMaterialColor(float temperature)
+    // Actualización de la gráfica
+    void UpdateGraph()
     {
-        // Normalizar la temperatura en un rango entre 0 y 1
-        float normalizedTemperature = Mathf.InverseLerp(minTemperature, maxTemperature, temperature);
+        // Usar la última temperatura recibida en lugar de un valor aleatorio
+        float newY = latestTemperature;
 
-        // Calcular el color interpolando entre azul y rojo
-        Color newColor = Color.Lerp(Color.blue, Color.red, normalizedTemperature);
+        // Agregar un nuevo punto en el extremo derecho
+        points.Add(new Vector3((points.Count > 0 ? points[^1].x + xSpacing : 0), newY, 0));
 
-        // Aplicar el color al material
-        if (targetMaterial != null)
+        // Desplazar todos los puntos hacia la izquierda
+        for (int i = 0; i < points.Count; i++)
         {
-            targetMaterial.color = newColor;
+            points[i] = new Vector3(points[i].x - xSpacing, points[i].y, 0);
         }
-        else
+
+        // Eliminar puntos que salen del rango visible
+        if (points.Count > 0 && points[0].x < -maxPoints * xSpacing)
         {
-            Debug.LogWarning("El Material no está asignado en el inspector.");
+            points.RemoveAt(0);
         }
+
+        // Actualizar el LineRenderer
+        lineRenderer.positionCount = points.Count;
+        lineRenderer.SetPositions(points.ToArray());
     }
 }
